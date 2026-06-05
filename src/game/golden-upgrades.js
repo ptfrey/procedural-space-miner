@@ -76,6 +76,24 @@ export const GOLDEN_UPGRADES = [
     },
   },
   {
+    id: "escort-foundry",
+    code: "DRONE",
+    name: "Escort Foundry",
+    summary: "Deploy two drones that orbit the ship and shoot asteroids.",
+    apply(perks) {
+      perks.combatDroneCount += 2;
+    },
+  },
+  {
+    id: "rocket-printer",
+    code: "RKT",
+    name: "Rocket Printer",
+    summary: "Periodically launches seeking rockets at asteroids.",
+    apply(perks) {
+      perks.rocketSalvo += 1;
+    },
+  },
+  {
     id: "emergency-reservoir",
     code: "CELL",
     name: "Emergency Reservoir",
@@ -99,6 +117,8 @@ export function createDefaultPerks() {
     upgradeDiscount: 0,
     goldenChanceMultiplier: 1,
     asteroidEnergyRestore: 0,
+    combatDroneCount: 0,
+    rocketSalvo: 0,
   };
 }
 

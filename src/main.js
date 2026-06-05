@@ -76,6 +76,20 @@ const game = {
 
 const keys = new Set();
 const tapLaserPulse = 0.42;
+const laserAimDistance = 260;
+const laserBaseRange = 145;
+const laserRangePerStrength = 18;
+const droneRange = 132;
+const droneBaseDamage = 18;
+const gemAirtimeBoostDelay = 0.45;
+const gemAirtimeBoostRate = 0.3;
+const gemAirtimeBoostMax = 3.2;
+const rocketLaunchInterval = 3.6;
+const rocketRange = 190;
+const rocketSpeed = 76;
+const rocketTurnRate = 5.8;
+const rocketBlastRadius = 10.5;
+const rocketBlastDamage = 86;
 const pointer = {
   x: window.innerWidth * 0.5,
   y: window.innerHeight * 0.5,
@@ -99,7 +113,10 @@ const player = {
 const asteroids = [];
 const gems = [];
 const particles = [];
+const drones = [];
+const rockets = [];
 let nextAsteroidZ = -34;
+let rocketCooldown = 1.4;
 
 const reusable = {
   vecA: new THREE.Vector3(),
@@ -175,6 +192,38 @@ const sparkGeometry = new THREE.SphereGeometry(0.09, 8, 6);
 const gemGeometry = new THREE.OctahedronGeometry(0.62, 0);
 const beamGeometry = new THREE.CylinderGeometry(0.055, 0.1, 1, 18, 1, true);
 const beamCoreGeometry = new THREE.CylinderGeometry(0.025, 0.038, 1, 14, 1, true);
+const droneBeamGeometry = new THREE.CylinderGeometry(0.025, 0.045, 1, 12, 1, true);
+const droneCoreGeometry = new THREE.CylinderGeometry(0.012, 0.02, 1, 10, 1, true);
+const droneBodyGeometry = new THREE.OctahedronGeometry(0.48, 0);
+const droneWingGeometry = new THREE.BoxGeometry(0.86, 0.08, 0.28);
+const rocketBodyGeometry = new THREE.CylinderGeometry(0.11, 0.16, 1.05, 10);
+const rocketNoseGeometry = new THREE.ConeGeometry(0.16, 0.38, 10);
+const rocketFinGeometry = new THREE.BoxGeometry(0.34, 0.05, 0.18);
+const droneBodyMaterial = new THREE.MeshStandardMaterial({
+  color: 0xd8f1ff,
+  emissive: 0x0a5f7a,
+  emissiveIntensity: 0.28,
+  roughness: 0.34,
+  metalness: 0.62,
+  flatShading: true,
+});
+const droneAccentMaterial = new THREE.MeshBasicMaterial({
+  color: 0x5fe6ff,
+  transparent: true,
+  opacity: 0.9,
+  blending: THREE.AdditiveBlending,
+});
+const rocketBodyMaterial = new THREE.MeshStandardMaterial({
+  color: 0xf6f2e8,
+  roughness: 0.38,
+  metalness: 0.42,
+});
+const rocketFlameMaterial = new THREE.MeshBasicMaterial({
+  color: 0xff7dad,
+  transparent: true,
+  opacity: 0.86,
+  blending: THREE.AdditiveBlending,
+});
 
 const laserBeam = new THREE.Group();
 const beamShell = new THREE.Mesh(
@@ -424,6 +473,8 @@ function animate(timestamp) {
     updateGems(dt, time);
     updateParticles(dt);
     updateLaser(dt, time);
+    updateDrones(dt, time);
+    updateRockets(dt, time);
     updateEnvironment(dt, time);
     updateCamera(dt);
   }
@@ -536,16 +587,19 @@ function updateGems(dt, time) {
     const toPlayer = reusable.vecA.copy(player.position).sub(gem.mesh.position);
     const distance = toPlayer.length();
     const attractRadius = (8 + game.upgrades.speed * 0.8) * game.perks.collectorRadiusMultiplier;
+    const airtimeBoost =
+      1 + Math.min(gemAirtimeBoostMax - 1, Math.max(0, gem.age - gemAirtimeBoostDelay) * gemAirtimeBoostRate);
 
     if (gem.vacuumed || distance < attractRadius) {
-      const pullStrength = gem.vacuumed
+      const basePullStrength = gem.vacuumed
         ? Math.min(160 * game.perks.vacuumSpeedMultiplier, (46 + distance * 2.6) * game.perks.vacuumSpeedMultiplier)
         : (attractRadius - distance) * 18;
+      const pullStrength = basePullStrength * airtimeBoost;
       const pull = toPlayer.normalize().multiplyScalar(pullStrength * dt);
       gem.velocity.add(pull);
     }
 
-    const vacuumSpeedLimit = 70 * game.perks.vacuumSpeedMultiplier;
+    const vacuumSpeedLimit = 70 * game.perks.vacuumSpeedMultiplier * airtimeBoost;
     if (gem.vacuumed && gem.velocity.lengthSq() > vacuumSpeedLimit * vacuumSpeedLimit) {
       gem.velocity.setLength(vacuumSpeedLimit);
     }
@@ -588,6 +642,300 @@ function updateParticles(dt) {
   }
 }
 
+function syncDrones() {
+  while (drones.length < game.perks.combatDroneCount) {
+    const drone = createDrone(drones.length);
+    drones.push(drone);
+    scene.add(drone.group, drone.beam);
+  }
+}
+
+function createDrone(index) {
+  const group = new THREE.Group();
+  const body = new THREE.Mesh(droneBodyGeometry, droneBodyMaterial);
+  body.rotation.y = Math.PI * 0.25;
+  group.add(body);
+
+  const wing = new THREE.Mesh(droneWingGeometry, droneBodyMaterial);
+  wing.position.y = -0.05;
+  group.add(wing);
+
+  const eye = new THREE.Mesh(new THREE.SphereGeometry(0.13, 10, 8), droneAccentMaterial);
+  eye.position.set(0, 0.1, -0.45);
+  group.add(eye);
+
+  const beam = new THREE.Group();
+  beam.add(
+    new THREE.Mesh(
+      droneBeamGeometry,
+      new THREE.MeshBasicMaterial({
+        color: 0x5fe6ff,
+        transparent: true,
+        opacity: 0.26,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      }),
+    ),
+    new THREE.Mesh(
+      droneCoreGeometry,
+      new THREE.MeshBasicMaterial({
+        color: 0xf2ffff,
+        transparent: true,
+        opacity: 0.82,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      }),
+    ),
+  );
+  beam.visible = false;
+
+  return {
+    group,
+    beam,
+    index,
+    sparkTimer: Math.random() * 0.12,
+  };
+}
+
+function updateDrones(dt, time) {
+  syncDrones();
+
+  for (const drone of drones) {
+    const orbitSpacing = (Math.PI * 2) / Math.max(1, drones.length);
+    const orbitAngle = time * 1.35 + drone.index * orbitSpacing;
+    const desired = reusable.vecD.set(
+      player.position.x + Math.cos(orbitAngle) * 3.3,
+      player.position.y + 1.1 + Math.sin(time * 1.9 + drone.index) * 0.75,
+      player.position.z + 1.8 + Math.sin(orbitAngle) * 1.4,
+    );
+
+    drone.group.position.lerp(desired, 1 - Math.pow(0.002, dt));
+    drone.group.rotation.y = -orbitAngle + Math.PI * 0.5;
+    drone.group.rotation.z = Math.sin(time * 3 + drone.index) * 0.18;
+
+    const target = findDroneTarget(drone.group.position);
+    if (!target) {
+      drone.beam.visible = false;
+      continue;
+    }
+
+    const origin = reusable.vecA.copy(drone.group.position);
+    const hitPoint = reusable.vecB.copy(target.mesh.position);
+    const toTarget = reusable.vecC.copy(hitPoint).sub(origin);
+    if (toTarget.lengthSq() > 0.001) {
+      const surfaceOffset = Math.min(target.hitRadius * 0.65, toTarget.length() * 0.35);
+      hitPoint.add(toTarget.normalize().multiplyScalar(-surfaceOffset));
+    }
+
+    drone.group.lookAt(target.mesh.position);
+    setBeamBetween(drone.beam, origin, hitPoint, 1);
+    drone.beam.visible = true;
+
+    const damage = (droneBaseDamage + game.upgrades.strength * 3.5) * dt;
+    target.hp -= damage;
+    target.hot = 1;
+    drone.sparkTimer += dt;
+    if (drone.sparkTimer > 0.12) {
+      drone.sparkTimer = 0;
+      spawnSpark(hitPoint, 0x5fe6ff, 1, 0.28);
+    }
+
+    if (target.hp <= 0) {
+      drone.beam.visible = false;
+      destroyAsteroid(target);
+    }
+  }
+}
+
+function findDroneTarget(dronePosition) {
+  let best = null;
+  let bestScore = Infinity;
+  const maxRange = droneRange + game.upgrades.strength * 8;
+
+  for (const asteroid of asteroids) {
+    const distance = dronePosition.distanceTo(asteroid.mesh.position);
+    const ahead = asteroid.mesh.position.z < player.position.z + 18;
+    if (!ahead || distance > maxRange) {
+      continue;
+    }
+
+    const score = distance + Math.max(0, asteroid.mesh.position.z - player.position.z) * 3;
+    if (score < bestScore) {
+      bestScore = score;
+      best = asteroid;
+    }
+  }
+
+  return best;
+}
+
+function updateRockets(dt, time) {
+  if (game.perks.rocketSalvo > 0) {
+    rocketCooldown -= dt;
+    if (rocketCooldown <= 0) {
+      launchRocketSalvo(time);
+      rocketCooldown = Math.max(1.25, rocketLaunchInterval - (game.perks.rocketSalvo - 1) * 0.45);
+    }
+  }
+
+  for (let i = rockets.length - 1; i >= 0; i -= 1) {
+    const rocket = rockets[i];
+    rocket.age += dt;
+
+    if (!rocket.target || !asteroids.includes(rocket.target)) {
+      rocket.target = findRocketTarget(rocket.mesh.position);
+    }
+
+    if (rocket.target) {
+      const desired = reusable.vecA.copy(rocket.target.mesh.position).sub(rocket.mesh.position).normalize();
+      rocket.velocity.lerp(desired.multiplyScalar(rocketSpeed), 1 - Math.pow(0.004, dt * rocketTurnRate));
+    }
+
+    rocket.mesh.position.addScaledVector(rocket.velocity, dt);
+    if (rocket.velocity.lengthSq() > 0.001) {
+      reusable.vecB.copy(rocket.mesh.position).add(rocket.velocity);
+      rocket.mesh.lookAt(reusable.vecB);
+    }
+
+    const flame = rocket.mesh.getObjectByName("rocketFlame");
+    if (flame) {
+      flame.scale.setScalar(0.75 + Math.sin(time * 24 + rocket.age * 8) * 0.12);
+    }
+
+    rocket.trailTimer += dt;
+    if (rocket.trailTimer > 0.035) {
+      rocket.trailTimer = 0;
+      const trailPosition = reusable.vecC.copy(rocket.mesh.position).addScaledVector(rocket.velocity, -0.018);
+      spawnSpark(trailPosition, 0xff7dad, 1, 0.24);
+    }
+
+    const hit = rocket.target && rocket.mesh.position.distanceTo(rocket.target.mesh.position) < rocket.target.hitRadius + 0.7;
+    const expired = rocket.age > 5.2 || rocket.mesh.position.z > player.position.z + 48;
+    if (hit || expired) {
+      explodeRocket(rocket, hit ? rocket.target.mesh.position : rocket.mesh.position);
+      rockets.splice(i, 1);
+    }
+  }
+}
+
+function launchRocketSalvo(time) {
+  const salvoCount = Math.min(4, game.perks.rocketSalvo);
+  for (let i = 0; i < salvoCount; i += 1) {
+    const delayOffset = (i - (salvoCount - 1) * 0.5) * 0.34;
+    const side = (rockets.length + i) % 2 === 0 ? -1 : 1;
+    const origin = reusable.vecA.set(side * 1.15, -0.32, -0.9 + delayOffset);
+    ship.localToWorld(origin);
+    const target = findRocketTarget(origin);
+    if (!target) {
+      continue;
+    }
+
+    const rocket = createRocket();
+    rocket.mesh.position.copy(origin);
+    rocket.velocity
+      .copy(target.mesh.position)
+      .sub(origin)
+      .normalize()
+      .multiplyScalar(rocketSpeed * (0.78 + i * 0.05));
+    rocket.target = target;
+    rocket.age = Math.max(0, -i * 0.08);
+    rocket.trailTimer = Math.random() * 0.03;
+    rocket.mesh.rotation.z = Math.sin(time + i) * 0.2;
+    rockets.push(rocket);
+    scene.add(rocket.mesh);
+  }
+}
+
+function createRocket() {
+  const mesh = new THREE.Group();
+  const body = new THREE.Mesh(rocketBodyGeometry, rocketBodyMaterial);
+  body.rotation.x = Math.PI * 0.5;
+  mesh.add(body);
+
+  const nose = new THREE.Mesh(rocketNoseGeometry, rocketBodyMaterial);
+  nose.rotation.x = -Math.PI * 0.5;
+  nose.position.z = -0.7;
+  mesh.add(nose);
+
+  const leftFin = new THREE.Mesh(rocketFinGeometry, rocketBodyMaterial);
+  leftFin.position.set(-0.18, -0.02, 0.42);
+  mesh.add(leftFin);
+
+  const rightFin = leftFin.clone();
+  rightFin.position.x *= -1;
+  mesh.add(rightFin);
+
+  const flame = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.46, 12), rocketFlameMaterial);
+  flame.name = "rocketFlame";
+  flame.rotation.x = Math.PI * 0.5;
+  flame.position.z = 0.78;
+  mesh.add(flame);
+
+  return {
+    mesh,
+    velocity: new THREE.Vector3(),
+    target: null,
+    age: 0,
+    trailTimer: 0,
+  };
+}
+
+function findRocketTarget(origin) {
+  let best = null;
+  let bestScore = Infinity;
+
+  for (const asteroid of asteroids) {
+    const offset = reusable.vecD.copy(asteroid.mesh.position).sub(origin);
+    const distance = offset.length();
+    const forwardDistance = player.position.z - asteroid.mesh.position.z;
+    if (distance > rocketRange || forwardDistance < -20) {
+      continue;
+    }
+
+    const score = distance + Math.abs(asteroid.mesh.position.x - player.position.x) * 0.45;
+    if (score < bestScore) {
+      bestScore = score;
+      best = asteroid;
+    }
+  }
+
+  return best;
+}
+
+function explodeRocket(rocket, positionLike) {
+  const position = reusable.vecA.copy(positionLike);
+  scene.remove(rocket.mesh);
+  disposeRocket(rocket.mesh);
+  spawnSpark(position, 0xff7dad, 18, 1.08);
+
+  const destroyed = [];
+  for (const asteroid of asteroids) {
+    const distance = asteroid.mesh.position.distanceTo(position);
+    if (distance > rocketBlastRadius + asteroid.hitRadius) {
+      continue;
+    }
+
+    const falloff = THREE.MathUtils.clamp(1 - distance / (rocketBlastRadius + asteroid.hitRadius), 0.18, 1);
+    asteroid.hp -= rocketBlastDamage * falloff;
+    asteroid.hot = 1;
+    if (asteroid.hp <= 0) {
+      destroyed.push(asteroid);
+    }
+  }
+
+  for (const asteroid of destroyed) {
+    destroyAsteroid(asteroid);
+  }
+}
+
+function disposeRocket(mesh) {
+  mesh.traverse((child) => {
+    if (child.name === "rocketFlame") {
+      child.geometry?.dispose();
+    }
+  });
+}
+
 function updateLaser(dt, time) {
   pointer.fireLatch = Math.max(0, pointer.fireLatch - dt);
   const wantsFire = pointer.firing || pointer.fireLatch > 0 || keys.has(" ") || keys.has("f");
@@ -616,10 +964,10 @@ function updateLaser(dt, time) {
   ship.localToWorld(origin);
   const targetFromCamera = reusable.vecB
     .copy(raycaster.ray.direction)
-    .multiplyScalar(140)
+    .multiplyScalar(laserAimDistance)
     .add(raycaster.ray.origin);
   const direction = reusable.vecC.copy(targetFromCamera).sub(origin).normalize();
-  const range = 66 + strengthLevel * 7;
+  const range = laserBaseRange + strengthLevel * laserRangePerStrength;
   const hits = traceAsteroids(origin, direction, range, 1 + game.perks.laserPierce);
   let beamEnd = targetFromCamera.copy(direction).multiplyScalar(range).add(origin);
 
@@ -690,18 +1038,21 @@ function traceAsteroids(origin, direction, range, maxHits) {
 }
 
 function updateBeam(origin, end, strengthLevel, time) {
+  setBeamBetween(laserBeam, origin, end, 1 + strengthLevel * 0.15);
+  laserBeam.visible = true;
+  beamShell.material.opacity = 0.2 + Math.sin(time * 31) * 0.045;
+  beamCore.material.opacity = 0.78 + Math.sin(time * 45) * 0.12;
+}
+
+function setBeamBetween(beam, origin, end, radialScale) {
   const mid = reusable.vecD.copy(origin).lerp(end, 0.5);
   const direction = reusable.vecE.copy(end).sub(origin);
   const length = direction.length();
 
-  laserBeam.visible = true;
-  laserBeam.position.copy(mid);
+  beam.position.copy(mid);
   reusable.quat.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.normalize());
-  laserBeam.quaternion.copy(reusable.quat);
-  laserBeam.scale.set(1 + strengthLevel * 0.15, length, 1 + strengthLevel * 0.15);
-
-  beamShell.material.opacity = 0.2 + Math.sin(time * 31) * 0.045;
-  beamCore.material.opacity = 0.78 + Math.sin(time * 45) * 0.12;
+  beam.quaternion.copy(reusable.quat);
+  beam.scale.set(radialScale, length, radialScale);
 }
 
 function destroyAsteroid(asteroid) {
@@ -794,6 +1145,7 @@ function chooseGoldenUpgrade(upgradeId) {
 
   hideGoldenChoice(ui);
   game.paused = false;
+  syncDrones();
   updateUpgradeUi(ui, game);
   showToast(ui, game, timer.getElapsed(), `${upgrade.name} installed`);
 }
