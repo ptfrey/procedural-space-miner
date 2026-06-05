@@ -455,6 +455,12 @@ function setupEvents() {
   const hotkeyMap = { "1": "speed", "2": "strength", "3": "duration" };
   window.addEventListener("keydown", (event) => {
     if (event.repeat || event.ctrlKey || event.metaKey || event.altKey) return;
+    const idx = { "1": 0, "2": 1, "3": 2 }[event.key];
+    if (idx !== undefined && !ui.goldenChoice.hidden) {
+      const cards = ui.goldenCards.querySelectorAll("button");
+      cards[idx]?.click();
+      return;
+    }
     const type = hotkeyMap[event.key];
     if (type) buyUpgrade(type);
   });
@@ -1162,16 +1168,29 @@ function damageAsteroidsNear(position, sourceRadius) {
   }
 }
 
+const goldenQueue = [];
+
 function openGoldenChoice() {
+  if (!ui.goldenChoice.hidden) {
+    goldenQueue.push(true);
+    return;
+  }
+  showNextGoldenChoice();
+}
+
+function showNextGoldenChoice() {
   const choices = getGoldenUpgradeChoices(game);
   if (choices.length === 0) {
     game.gems += 40;
     updateUpgradeUi(ui, game);
     showToast(ui, game, timer.getElapsed(), "Golden cache converted to gems");
+    if (goldenQueue.length > 0) {
+      goldenQueue.shift();
+      showNextGoldenChoice();
+    }
     return;
   }
 
-  game.paused = true;
   showGoldenChoice(ui, choices, chooseGoldenUpgrade);
 }
 
@@ -1182,7 +1201,6 @@ function chooseGoldenUpgrade(upgradeId) {
   }
 
   hideGoldenChoice(ui);
-  game.paused = false;
   syncDrones();
   updateUpgradeUi(ui, game);
   showToast(
@@ -1191,6 +1209,11 @@ function chooseGoldenUpgrade(upgradeId) {
     timer.getElapsed(),
     `${upgrade.name} Lv ${upgrade.level}/${upgrade.maxLevel} installed`,
   );
+
+  if (goldenQueue.length > 0) {
+    goldenQueue.shift();
+    showNextGoldenChoice();
+  }
 }
 
 function disposeObject(object) {
