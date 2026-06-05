@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Procedural Space Miner</title>
+  </head>
+  <body>
+    <canvas id="game"></canvas>
+
+    <main id="hud" aria-label="Space miner controls and status">
+      <section class="top-status" aria-label="Flight status">
+        <div class="stat">
+          <span class="label">Gems</span>
+          <strong id="gems">0</strong>
+        </div>
+        <div class="stat">
+          <span class="label">Range</span>
+          <strong id="range">0 km</strong>
+        </div>
+        <div class="stat">
+          <span class="label">Speed</span>
+          <strong id="speed">0</strong>
+        </div>
+      </section>
+
+      <section class="energy-panel" aria-label="Laser energy">
+        <div class="energy-copy">
+          <span>Laser Energy</span>
+          <strong id="energy-value">100%</strong>
+        </div>
+        <div class="bar-shell">
+          <div id="energy-fill" class="energy-fill"></div>
+        </div>
+      </section>
+
+      <section class="upgrade-dock" aria-label="Ship upgrades">
+        <button class="upgrade-button" type="button" data-upgrade="speed">
+          <span class="upgrade-icon">SPD</span>
+          <span class="upgrade-name">Speed</span>
+          <span class="upgrade-meta" id="speed-meta">Lv 1 - 8</span>
+        </button>
+        <button class="upgrade-button" type="button" data-upgrade="strength">
+          <span class="upgrade-icon">DMG</span>
+          <span class="upgrade-name">Laser</span>
+          <span class="upgrade-meta" id="strength-meta">Lv 1 - 10</span>
+        </button>
+        <button class="upgrade-button" type="button" data-upgrade="duration">
+          <span class="upgrade-icon">ENG</span>
+          <span class="upgrade-name">Duration</span>
+          <span class="upgrade-meta" id="duration-meta">Lv 1 - 12</span>
+        </button>
+      </section>
+
+      <div id="reticle" aria-hidden="true">
+        <span></span>
+      </div>
+      <div id="toast" role="status" aria-live="polite"></div>
+    </main>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
