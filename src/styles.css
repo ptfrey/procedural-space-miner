@@ -60,6 +60,38 @@ button {
   max-width: calc(100vw - 32px);
 }
 
+.debug-panel {
+  pointer-events: auto;
+  position: absolute;
+  top: calc(max(16px, env(safe-area-inset-top)) + 220px);
+  left: max(16px, env(safe-area-inset-left));
+  width: min(300px, calc(100vw - 32px));
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(16, 38, 56, 0.82), rgba(5, 14, 26, 0.6));
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.28);
+  display: grid;
+  gap: 6px;
+}
+
+.debug-label {
+  color: var(--text-soft);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.debug-label strong {
+  color: var(--gold);
+}
+
+.debug-slider {
+  width: 100%;
+  accent-color: var(--gold);
+  cursor: pointer;
+}
+
 .upgrade-dashboard {
   position: absolute;
   top: calc(max(16px, env(safe-area-inset-top)) + 70px);

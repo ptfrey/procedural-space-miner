@@ -56,6 +56,15 @@ const raycaster = new THREE.Raycaster();
 
 const ui = getUiElements();
 
+let goldenChanceOverride = null;
+const goldenSlider = document.querySelector("#golden-chance-slider");
+const goldenChanceDisplay = document.querySelector("#golden-chance-value");
+goldenSlider.addEventListener("input", () => {
+  const pct = Number(goldenSlider.value);
+  goldenChanceOverride = pct / 100;
+  goldenChanceDisplay.textContent = `${pct}%`;
+});
+
 const game = {
   gems: 0,
   distance: 0,
@@ -303,7 +312,7 @@ function spawnAsteroid(z) {
   const radius = randomRange(1.8, 5.8);
   const seed = Math.random() * 10000;
   const geometry = createAsteroidGeometry(radius, seed);
-  const goldenChance = Math.min(0.2, GOLDEN_ASTEROID_BASE_CHANCE * game.perks.goldenChanceMultiplier);
+  const goldenChance = goldenChanceOverride ?? Math.min(0.2, GOLDEN_ASTEROID_BASE_CHANCE * game.perks.goldenChanceMultiplier);
   const golden = Math.random() < goldenChance;
   const baseMaterial = golden
     ? goldenAsteroidMaterial
@@ -358,9 +367,12 @@ function spawnGems(position, count, asteroidRadius) {
     mesh.scale.setScalar(scale);
     scene.add(mesh);
 
+    const scatter = new THREE.Vector3(randomRange(-4, 4), randomRange(-4, 4), 0);
+    const launch = new THREE.Vector3(0, 0, -randomRange(8, 18)).add(scatter);
+
     gems.push({
       mesh,
-      velocity: randomUnitVector().multiplyScalar(randomRange(1.8, 5.4)),
+      velocity: launch,
       spin: new THREE.Vector3(randomRange(-2.4, 2.4), randomRange(-2.8, 2.8), randomRange(-2.2, 2.2)),
       value: (Math.random() > 0.86 ? 2 : 1) + game.perks.gemValueBonus,
       age: 0,
@@ -438,6 +450,13 @@ function setupEvents() {
     button.addEventListener("click", () => {
       buyUpgrade(button.dataset.upgrade);
     });
+  });
+
+  const hotkeyMap = { "1": "speed", "2": "strength", "3": "duration" };
+  window.addEventListener("keydown", (event) => {
+    if (event.repeat || event.ctrlKey || event.metaKey || event.altKey) return;
+    const type = hotkeyMap[event.key];
+    if (type) buyUpgrade(type);
   });
 }
 
