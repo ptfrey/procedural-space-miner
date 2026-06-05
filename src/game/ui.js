@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { GOLDEN_UPGRADES, GOLDEN_UPGRADE_MAX_LEVEL } from "./golden-upgrades.js";
 
 export function getUiElements() {
   return {
@@ -11,6 +12,7 @@ export function getUiElements() {
     toast: document.querySelector("#toast"),
     goldenChoice: document.querySelector("#golden-choice"),
     goldenCards: document.querySelector("#golden-cards"),
+    goldenDashboard: document.querySelector("#golden-dashboard"),
     buttons: [...document.querySelectorAll("[data-upgrade]")],
     meta: {
       speed: document.querySelector("#speed-meta"),
@@ -57,6 +59,34 @@ export function updateUpgradeUi(ui, game) {
     const key = button.dataset.upgrade;
     button.disabled = game.gems < costs[key];
   });
+
+  renderGoldenDashboard(ui, game);
+}
+
+export function renderGoldenDashboard(ui, game) {
+  if (!ui.goldenDashboard) {
+    return;
+  }
+
+  const levels = game.goldenUpgradeLevels ?? {};
+  const owned = GOLDEN_UPGRADES.filter((upgrade) => (levels[upgrade.id] ?? 0) > 0);
+
+  if (owned.length === 0) {
+    ui.goldenDashboard.innerHTML = `<span class="dashboard-empty">None yet</span>`;
+    return;
+  }
+
+  ui.goldenDashboard.innerHTML = owned
+    .map((upgrade) => {
+      const level = levels[upgrade.id] ?? 0;
+      const maxed = level >= GOLDEN_UPGRADE_MAX_LEVEL ? " is-maxed" : "";
+      return `
+        <span class="dashboard-chip${maxed}" title="${upgrade.name}">
+          <span class="dashboard-chip-code">${upgrade.code}</span>
+          <span class="dashboard-chip-level">${level}/${GOLDEN_UPGRADE_MAX_LEVEL}</span>
+        </span>`;
+    })
+    .join("");
 }
 
 export function getUpgradeCosts(game) {
@@ -87,6 +117,7 @@ export function showGoldenChoice(ui, choices, onChoose) {
     button.innerHTML = `
       <span class="golden-card-code">${choice.code}</span>
       <strong>${choice.name}</strong>
+      <span class="golden-card-level">Lv ${choice.level} &rarr; ${choice.nextLevel} / ${choice.maxLevel}</span>
       <span>${choice.summary}</span>
     `;
     button.addEventListener("click", () => onChoose(choice.id), { once: true });

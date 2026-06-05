@@ -65,7 +65,7 @@ const game = {
   paused: false,
   lastToastAt: 0,
   laserPulse: 0,
-  goldenUpgrades: [],
+  goldenUpgradeLevels: {},
   perks: createDefaultPerks(),
   upgrades: {
     speed: 1,
@@ -84,6 +84,9 @@ const droneBaseDamage = 18;
 const gemAirtimeBoostDelay = 0.45;
 const gemAirtimeBoostRate = 0.3;
 const gemAirtimeBoostMax = 3.2;
+const gemTrailDistance = 5.8;
+const gemTrailApproachDistance = 9.5;
+const gemTrailBrake = 0.16;
 const rocketLaunchInterval = 3.6;
 const rocketRange = 190;
 const rocketSpeed = 76;
@@ -589,14 +592,26 @@ function updateGems(dt, time) {
     const attractRadius = (8 + game.upgrades.speed * 0.8) * game.perks.collectorRadiusMultiplier;
     const airtimeBoost =
       1 + Math.min(gemAirtimeBoostMax - 1, Math.max(0, gem.age - gemAirtimeBoostDelay) * gemAirtimeBoostRate);
+    const trailBlend = gem.vacuumed
+      ? THREE.MathUtils.clamp((distance - 1.9) / gemTrailApproachDistance, 0, 1)
+      : 0;
+    const pullTarget = reusable.vecB.copy(player.position);
+    pullTarget.z += gemTrailDistance * trailBlend;
+    const toPullTarget = reusable.vecC.copy(pullTarget).sub(gem.mesh.position);
+    const pullDistance = toPullTarget.length();
 
     if (gem.vacuumed || distance < attractRadius) {
       const basePullStrength = gem.vacuumed
-        ? Math.min(160 * game.perks.vacuumSpeedMultiplier, (46 + distance * 2.6) * game.perks.vacuumSpeedMultiplier)
+        ? Math.min(
+            142 * game.perks.vacuumSpeedMultiplier,
+            (34 + pullDistance * 2.15) * game.perks.vacuumSpeedMultiplier,
+          )
         : (attractRadius - distance) * 18;
       const pullStrength = basePullStrength * airtimeBoost;
-      const pull = toPlayer.normalize().multiplyScalar(pullStrength * dt);
-      gem.velocity.add(pull);
+      if (pullDistance > 0.001) {
+        const pull = toPullTarget.normalize().multiplyScalar(pullStrength * dt);
+        gem.velocity.add(pull);
+      }
     }
 
     const vacuumSpeedLimit = 70 * game.perks.vacuumSpeedMultiplier * airtimeBoost;
@@ -604,9 +619,13 @@ function updateGems(dt, time) {
       gem.velocity.setLength(vacuumSpeedLimit);
     }
 
+    if (gem.vacuumed && gem.mesh.position.z > player.position.z + gemTrailDistance && gem.velocity.z > 0) {
+      gem.velocity.z *= Math.pow(gemTrailBrake, dt);
+    }
+
     gem.velocity.multiplyScalar(Math.pow(gem.vacuumed ? 0.88 : 0.72, dt));
     gem.mesh.position.addScaledVector(gem.velocity, dt);
-    gem.mesh.position.z += player.forwardSpeed * (gem.vacuumed ? 0.38 : 0.18) * dt;
+    gem.mesh.position.z += player.forwardSpeed * (gem.vacuumed ? 0.16 : 0.18) * dt;
     gem.mesh.scale.setScalar((gem.value === 2 ? 1.18 : 1) * (1 + Math.sin(time * 6 + gem.age) * 0.06));
 
     if (gem.mesh.position.distanceTo(player.position) < 1.75 * game.perks.collectorRadiusMultiplier) {
@@ -1147,7 +1166,12 @@ function chooseGoldenUpgrade(upgradeId) {
   game.paused = false;
   syncDrones();
   updateUpgradeUi(ui, game);
-  showToast(ui, game, timer.getElapsed(), `${upgrade.name} installed`);
+  showToast(
+    ui,
+    game,
+    timer.getElapsed(),
+    `${upgrade.name} Lv ${upgrade.level}/${upgrade.maxLevel} installed`,
+  );
 }
 
 function disposeObject(object) {

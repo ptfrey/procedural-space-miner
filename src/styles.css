@@ -60,6 +60,67 @@ button {
   max-width: calc(100vw - 32px);
 }
 
+.upgrade-dashboard {
+  position: absolute;
+  top: calc(max(16px, env(safe-area-inset-top)) + 70px);
+  left: max(16px, env(safe-area-inset-left));
+  display: grid;
+  gap: 6px;
+  width: min(300px, calc(100vw - 32px));
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(16, 38, 56, 0.82), rgba(5, 14, 26, 0.6));
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.28);
+}
+
+.dashboard-title {
+  color: var(--text-soft);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.dashboard-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.dashboard-empty {
+  color: var(--text-soft);
+  font-size: 12px;
+}
+
+.dashboard-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 7px;
+  border: 1px solid rgba(255, 211, 108, 0.35);
+  border-radius: 6px;
+  background: rgba(255, 211, 108, 0.08);
+}
+
+.dashboard-chip.is-maxed {
+  border-color: var(--gold);
+  background: rgba(255, 211, 108, 0.2);
+}
+
+.dashboard-chip-code {
+  color: var(--gold);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.03em;
+}
+
+.dashboard-chip-level {
+  color: var(--text-soft);
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
 .stat {
   min-width: 92px;
   padding: 10px 12px;
@@ -359,6 +420,13 @@ button {
 .golden-card strong {
   font-size: 18px;
   line-height: 1.1;
+}
+
+.golden-card-level {
+  color: var(--gold);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
 }
 
 .golden-card span:last-child {
